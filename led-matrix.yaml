@@ -1,0 +1,69 @@
+esphome:
+  name: ledmatrix
+  build_path: ./builds/ledmatrix
+  platform: ESP8266
+  board: nodemcuv2
+
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # fast_connect: true
+
+logger:
+
+api:
+  password: !secret api_password
+
+ota:
+  password: !secret ota_password
+
+web_server:
+  port: 80
+
+
+spi:
+  clk_pin: 14   # D5
+  mosi_pin: 13  # D7
+
+  
+display:
+  - platform: max7219digit
+    id: matrixdisplay
+    cs_pin: 2 # D4
+    num_chips: 4
+    intensity: 1
+    lambda: |-
+      it.strftime(0, 0, id(digit_font_bold), "%H:%M", id(sntp_time).now());
+      it.scroll(false);
+
+font:
+  - file: "pixelmix_bold.ttf"
+    id: digit_font_bold
+    size: 8
+
+
+time:
+  - platform: homeassistant
+    id: hass_time
+    timezone: GMT-1
+
+  - platform: sntp
+    id: sntp_time
+    #timezone: DE # Winterzeit
+    timezone: DE-2 # Sommerzeit
+
+light:
+  - platform: binary
+    name: "LED Matrix"
+    output: matrix_on_off
+    restore_mode: ALWAYS_ON
+
+output:
+  - platform: template
+    id: matrix_on_off
+    type: binary
+    write_action:
+      then:
+        - lambda: id(matrixdisplay).turn_on_off(state);
+
