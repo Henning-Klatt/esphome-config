@@ -51,7 +51,7 @@ rf_bridge:
 
 switch:
   - platform: template
-    name: "Ikea Regal"
+    name: "Stehlampe"
     optimistic: true
     turn_on_action:
       then:
@@ -67,6 +67,24 @@ switch:
             low: 0x0232
             high: 0x0886
             code: 0x554014
+
+  - platform: template
+    name: "Ikea Regal"
+    optimistic: true
+    turn_on_action:
+      then:
+        - rf_bridge.send_code:
+            sync: 0x4C90
+            low: 0x0296
+            high: 0x0864
+            code: 0x550015
+    turn_off_action:
+      then:
+        - rf_bridge.send_code:
+            sync: 0x4C28
+            low: 0x028E
+            high: 0x086C
+            code: 0x550014
 
   - platform: template
     name: "Rollo Türe"
@@ -157,5 +175,3 @@ switch:
             low: 0x0272
             high: 0x084C
             code: 0x100414
-        - rf_bridge.beep:
-            duration: 100
