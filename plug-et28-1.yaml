@@ -1,0 +1,14 @@
+esphome:
+  name: plug-et28-1 
+
+esp32:
+  board: esp32-c3-devkitm-1
+
+wifi:
+  networks:
+  - ssid: !secret wifi_ssid_1
+    password: !secret wifi_password_1
+
+ota:
+  - platform: esphome
+    password: !secret ota_password

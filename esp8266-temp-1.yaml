@@ -23,7 +23,8 @@ api:
   reboot_timeout: 24h
 
 ota:
-  password: !secret ota_password
+  - platform: esphome
+    password: !secret ota_password
 
 web_server:
   port: 80
@@ -32,11 +33,12 @@ time:
   - platform: homeassistant
     id: homeassistant_time
 
-dallas:
-  - pin: GPIO5
+one_wire:
+  - platform: gpio
+    pin: GPIO5
 
 sensor:
-  - platform: dallas
+  - platform: dallas_temp
     address: 0x3f000802de8fbd10 
     name: "$friendly_name Dallas"
 
@@ -48,3 +50,7 @@ sensor:
     humidity:
       name: "$friendly_name DHT Humidity"
     update_interval: 60s
+
+  - platform: wifi_signal
+    name: "$friendly_name WiFi Signal"
+    update_interval: 30s

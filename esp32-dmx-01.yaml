@@ -1,0 +1,191 @@
+esphome:
+  name: esp32-dmx-01
+
+esp32:
+  board: nodemcu-32s
+
+wifi:
+  networks:
+  - ssid: !secret wifi_ssid_1
+    password: !secret wifi_password_1
+  - ssid: !secret wifi_ssid_2
+    password: !secret wifi_password_2
+#  - ssid: "SFR_4502"
+#    password: "yxbc3456l1weeu3zx649"
+
+logger:
+  level: DEBUG
+  baud_rate: 0 # disable logging on UART: dmx512 is logging too much and slows down the update rate (animations flicker)
+
+api:
+  encryption:
+    key: !secret esp32-dmx-01-key
+  reboot_timeout: 24h
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+web_server:
+  port: 80
+
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: false
+
+bluetooth_proxy:
+  active: true
+
+external_components:
+  - source: github://andyboeh/esphome-dmx512
+
+uart:
+  id: uart_bus
+  baud_rate: 250000
+  tx_pin: 
+    number: GPIO17 # TX2
+    allow_other_uses: true # for ESPHome 2023.12.0 or higher
+  stop_bits: 2
+
+
+dmx512:
+  id: dmx  
+  uart_id: uart_bus
+  tx_pin: 
+    number: GPIO17
+    allow_other_uses: true # for ESPHome 2023.12.0 or higher
+  uart_num: 0 # not working: GPIO17: 0, 1, 2
+  periodic_update: true # If set to false, only state changes are transmitted and the bus is silent in between
+  update_interval: 0 # the minimum time between resending the current values (in ms, default 500)
+  force_full_frames: true # only works if true
+
+
+e131:
+  method: multicast # default: register E1.31 to Multicast group
+
+sensor:
+  - platform: wifi_signal
+    name: "esp32-dmx-01 WiFi Signal"
+    update_interval: 30s
+
+  - platform: internal_temperature
+    name: "Internal Temperature"
+    update_interval: 60s
+
+  - platform: template
+    icon: mdi:memory
+    name: Free Memory
+    lambda: return heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024;
+    unit_of_measurement: 'kB'
+    state_class: measurement
+    entity_category: "diagnostic"
+  - platform: uptime
+    name: Uptime
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+
+light:
+
+  - platform: rgbw
+    name: "LED PAR"
+    gamma_correct: 0
+    default_transition_length: 0.3s
+    red: dmx_ch_2
+    green: dmx_ch_3
+    blue: dmx_ch_4
+    white: dmx_ch_5
+    on_turn_on:
+    - lambda: |-
+        id(dmx_ch_1).set_level(255.0);
+#    on_turn_off:
+#    - lambda: |-
+#        id(dmx_ch_1).set_level(0.0);
+    effects:
+      - random:
+          name: "Fast random"
+          transition_length: 1s
+          update_interval: 1s
+      - random:
+          name: "Slow random"
+          transition_length: 5s
+          update_interval: 5s
+      - pulse:
+          name: "Asymmetrical Pulse"
+          transition_length:
+            on_length: 1250ms
+            off_length: 500ms
+          update_interval: 1.0s
+          min_brightness: 10%
+          max_brightness: 100%
+      - flicker:
+          name: "Flicker"
+          alpha: 50%
+          intensity: 15%
+
+  - platform: monochromatic
+    name: "Channel 1"
+    default_transition_length: 0s
+    gamma_correct: 0
+    output: dmx_ch_1
+  - platform: monochromatic
+    name: "Channel 2"
+    default_transition_length: 0s
+    gamma_correct: 0
+    output: dmx_ch_2
+  - platform: monochromatic
+    name: "Channel 3"
+    default_transition_length: 0s
+    gamma_correct: 0
+    output: dmx_ch_3
+  - platform: monochromatic
+    name: "Channel 4"
+    default_transition_length: 0s
+    gamma_correct: 0
+    output: dmx_ch_4
+  - platform: monochromatic
+    name: "Channel 5"
+    default_transition_length: 0s
+    gamma_correct: 0
+    output: dmx_ch_5
+  - platform: monochromatic
+    name: "Channel 6"
+    default_transition_length: 0s
+    gamma_correct: 0
+    output: dmx_ch_6
+
+output:
+  - platform: dmx512
+    channel: 1 # dimmer
+    universe: dmx
+    id: dmx_ch_1
+
+  - platform: dmx512
+    channel: 2 # red
+    universe: dmx
+    id: dmx_ch_2
+
+  - platform: dmx512
+    channel: 3 # green
+    universe: dmx
+    id: dmx_ch_3
+
+  - platform: dmx512
+    channel: 4 # blue
+    universe: dmx
+    id: dmx_ch_4
+
+  - platform: dmx512
+    channel: 5 # white
+    universe: dmx
+    id: dmx_ch_5
+
+  - platform: dmx512
+    channel: 6 # strobe
+    universe: dmx
+    id: dmx_ch_6
+
+
