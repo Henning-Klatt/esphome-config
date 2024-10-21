@@ -64,6 +64,39 @@ time:
       - 1.pool.ntp.org
       - 2.pool.ntp.org
 
+
+interval:
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - script.execute: fetch_from_nightscout
+
+
+script:
+ - id: fetch_from_nightscout
+   then:
+        - lambda: |-
+             HTTPClient http;
+             http.begin("https://nightscout.lexodexo.de/api/v1/entries/current.json");
+             http.GET();
+             DynamicJsonDocument doc(5000);
+             deserializeJson(doc, http.getStream());
+             int reading = doc[0]["sgv"];
+             id(current_bg).publish_state(to_string(reading));
+
+text_sensor:
+  - platform: template
+    name: "Current blood glucose"
+    id: current_bg
+
+http_request:
+  useragent: "esphome/${device_name}"
+  timeout: 10s
+  verify_ssl: false
+
 external_components:
   - source: github://pr#6209
     components: [ waveshare_epaper ]
@@ -87,6 +120,9 @@ display:
     lambda: |
      it.print(0, 0, id(openSansBold_font), "Anjas Nightscout Display :)");
 
-     //Time
-     it.strftime(10, 150, id(watch_font),TextAlign::BOTTOM_LEFT, "%H:%M", id(sntp_time).now());
-     it.strftime(10, 160, id(openSansBold_font),TextAlign::BOTTOM_LEFT, "%d.%m.%y, KW %W", id(sntp_time).now());
+     // Time
+     it.strftime(10, 300, id(watch_font),TextAlign::BOTTOM_LEFT, "%H:%M", id(sntp_time).now());
+     it.strftime(10, 310, id(openSansBold_font),TextAlign::BOTTOM_LEFT, "%d.%m.%Y", id(sntp_time).now());
+
+     // Blood Glucose
+     it.printf(20, 150, id(watch_font),TextAlign::BOTTOM_LEFT, "%s", id(current_bg).state.c_str());
