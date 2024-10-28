@@ -47,26 +47,60 @@ font:
        'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
        'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ' ', 'a', 'b', 'c', 'd', 'e', 'f',
        'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-       'u', 'v', 'w', 'x', 'y', 'z', 'å', 'ä', 'ö', 'ü', 'Ä', 'Ö', 'Ü', '/', '€', '’', 'ß']
+       'u', 'v', 'w', 'x', 'y', 'z', 'å', 'ä', 'ö', 'ü', 'Ä', 'Ö', 'Ü', '/', '€', '’', 'ß', 'Δ', '\']
  
   - file: 'fonts/OpenSans-Bold.ttf'
     id: watch_font
     size: 90
     glyphs:
-      [':', ".", '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+      [':', ".", '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-']
+      
+  - file: 'fonts/OpenSans-Bold.ttf'
+    id: openSansBold_35
+    size: 35
+    glyphs:
+      [':', ".", '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-']
+
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id: materialdesign_icons_25
+    size: 60
+    glyphs: [
+      "\U000F0054", # mdi-arrow-right
+      "\U000F005C", # mdi-arrow-top-right
+      "\U000F0043", # mdi-arrow-bottom-right
+      "\U000F01C2", # mdi-delta
+      "\U000F005D", # mdi-arrow-up
+      "\U000F0045", # mdi-arrow-down
+      "\U000F013C", # mdi-chevron-double-down
+      "\U000F013F", # mdi-chevron-double-up
+      "\U000F1056", # mdi-party-popper
+      "\U000F0A26" # mdi-balloon
+    ]
+    
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id: materialdesign_icons_30
+    size: 30
+    glyphs: [
+      "\U000F091F", # mdi-wifi-strength-1
+      "\U000F0922", # mdi-wifi-strength-2
+      "\U000F0925", # mdi-wifi-strength-3
+      "\U000F0928", # mdi-wifi-strength-4
+      "\U000F092B", # mdi-wifi-strength-alert-outline
+    ]
 
 time:
   - platform: sntp
     id: sntp_time
-    timezone: Europe/Berlin
+    # timezone: Europe/Berlin
+    timezone: "CET-1CEST,M3.5.0/02,M10.5.0/03"
     servers:
-      - 0.pool.ntp.org
+      - rustime01.rus.uni-stuttgart.de
       - 1.pool.ntp.org
       - 2.pool.ntp.org
 
 
 interval:
-  - interval: 60s
+  - interval: 30s
     then:
       - if:
           condition:
@@ -79,18 +113,57 @@ script:
  - id: fetch_from_nightscout
    then:
         - lambda: |-
-             HTTPClient http;
-             http.begin("https://nightscout.lexodexo.de/api/v1/entries/current.json");
-             http.GET();
-             DynamicJsonDocument doc(5000);
-             deserializeJson(doc, http.getStream());
-             int reading = doc[0]["sgv"];
-             id(current_bg).publish_state(to_string(reading));
+            HTTPClient http;
+            http.begin("https://nightscout.lexodexo.de/api/v1/entries/current.json");
+            http.GET();
+            DynamicJsonDocument doc(5000);
+            deserializeJson(doc, http.getStream());
+            int reading = doc[0]["sgv"];
+            id(current_bg).publish_state(to_string(reading));
+            id(current_bg_trend).publish_state(doc[0]["direction"]);
+            id(current_bg_delta).publish_state(doc[0]["delta"]);
+            id(ns_date).publish_state(doc[0]["date"]);
+ 
+            // If new value
+            if(id(ns_last_id).state != doc[0]["_id"]){
+              id(ns_last_id).publish_state(doc[0]["_id"]);
+              ESP_LOGI("Nightscout", "Got new unique _id");
+              // auto time = id(sntp_time).now();
+              id(my_display).update();
+            }
+
 
 text_sensor:
   - platform: template
     name: "Current blood glucose"
     id: current_bg
+
+  - platform: template
+    name: "current blood glucose trend"
+    id: current_bg_trend
+    
+  - platform: template
+    name: "nightscout last id"
+    id: ns_last_id
+    
+  - platform: template
+    name: "nightscout date"
+    id: ns_date
+  
+  - platform: wifi_info
+    ip_address:
+      name: "${device_name} IP Address"
+      id: ip_address
+
+
+sensor:
+  - platform: template
+    name: "current blood glucose delta"
+    id: current_bg_delta
+    
+  - platform: wifi_signal
+    id: wifisignal
+    update_interval: 60s
 
 http_request:
   useragent: "esphome/${device_name}"
@@ -100,6 +173,20 @@ http_request:
 external_components:
   - source: github://pr#6209
     components: [ waveshare_epaper ]
+    
+    
+button:
+  - platform: template
+    name: "Show Page 1"
+    on_press:
+      - display.page.show: page1
+      - component.update: my_display
+      
+  - platform: template
+    name: "Show Page 2"
+    on_press:
+      - display.page.show: page2
+      - component.update: my_display
 
 spi:
   clk_pin: GPIO18
@@ -114,15 +201,85 @@ display:
     busy_pin: GPIO27
     model: 4.20in-v2
     # full_update_every: 30 # not available for 4.20 inch model
-    update_interval: 180s
+    update_interval: 3600s # Every hour
     reset_duration: 2ms
     rotation: 270
-    lambda: |
-     it.print(0, 0, id(openSansBold_font), "Anjas Nightscout Display :)");
+    pages:
+      - id: page1
+        lambda: |          
+          // Layout
+          it.line(0, 365, 300, 365); // Horizontal bottom line
+          
+          // Time
+          it.strftime(150, 300, id(watch_font),TextAlign::BOTTOM_CENTER, "%H:%M", id(sntp_time).now());
+          it.strftime(150, 330, id(openSansBold_35),TextAlign::BOTTOM_CENTER, "%d.%m.%Y", id(sntp_time).now());
+          
+          // Blood Glucose
+          if(id(current_bg).has_state()){
+            it.printf(15, 140, id(watch_font),TextAlign::BOTTOM_LEFT, "%s", id(current_bg).state.c_str());
+          } else{
+            it.print(15, 140, id(watch_font),TextAlign::BOTTOM_LEFT, "---");
+          }
+          
+          // Blood Glucose Delta
+          if(id(current_bg_delta).has_state()){
+            it.printf(176, 120, id(openSansBold_font),TextAlign::BOTTOM_LEFT, "Δ: %+.0f mg/dl", id(current_bg_delta).state);
+          }
+          else {
+            it.print(176, 120, id(openSansBold_font),TextAlign::BOTTOM_LEFT, "Δ: - mg/dl");
+          }
+          					 
 
-     // Time
-     it.strftime(10, 300, id(watch_font),TextAlign::BOTTOM_LEFT, "%H:%M", id(sntp_time).now());
-     it.strftime(10, 310, id(openSansBold_font),TextAlign::BOTTOM_LEFT, "%d.%m.%Y", id(sntp_time).now());
-
-     // Blood Glucose
-     it.printf(20, 150, id(watch_font),TextAlign::BOTTOM_LEFT, "%s", id(current_bg).state.c_str());
+          // Blood Glucose Trend
+          if(id(current_bg_trend).has_state()) {
+            if(id(current_bg_trend).state == "Flat"){
+              it.print(220, 100, id(materialdesign_icons_25),TextAlign::BOTTOM_LEFT, "\U000F0054");
+            } else if(id(current_bg_trend).state == "FortyFiveUp"){
+              it.print(220, 100, id(materialdesign_icons_25),TextAlign::BOTTOM_LEFT, "\U000F005C");
+            } else if(id(current_bg_trend).state == "FortyFiveDown"){
+              it.print(220, 100, id(materialdesign_icons_25),TextAlign::BOTTOM_LEFT, "\U000F0043");
+            } else if(id(current_bg_trend).state == "SingleUp"){
+              it.print(220, 100, id(materialdesign_icons_25),TextAlign::BOTTOM_LEFT, "\U000F005D");
+            } else if(id(current_bg_trend).state == "SingleDown"){
+              it.print(220, 100, id(materialdesign_icons_25),TextAlign::BOTTOM_LEFT, "\U000F0045");
+            } else if(id(current_bg_trend).state == "DoubleDown"){
+              it.print(220, 100, id(materialdesign_icons_25),TextAlign::BOTTOM_LEFT, "\U000F013C");
+            } else if(id(current_bg_trend).state == "DoubleUp"){
+              it.print(220, 100, id(materialdesign_icons_25),TextAlign::BOTTOM_LEFT, "\U000F013F");
+            }
+            
+          }
+          
+          // Network info
+          if (id(ip_address).has_state()) {
+            it.printf(10, 400, id(openSansBold_font), TextAlign::BOTTOM_LEFT, "IPv4: %s", id(ip_address).state.c_str());
+          } else{
+            it.print(10, 400, id(openSansBold_font),TextAlign::BOTTOM_LEFT, "IPv4: ---");
+          }
+          it.print(10, 400, id(openSansBold_font),TextAlign::BOTTOM_LEFT, "IPv4: ");
+          
+          
+          // WiFi strength
+          if(id(wifisignal).has_state()) {
+            if (id(wifisignal).state >= -50) {
+              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F0928");
+            } else if (id(wifisignal).state  >= -60) {
+              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F0925");
+            } else if (id(wifisignal).state  >= -67) {
+              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F0922");
+            } else if (id(wifisignal).state  >= -70) {
+            } else {
+              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F092B");
+              ESP_LOGI("WiFi", "Unlikely");
+            }
+          }
+          
+      - id: page2
+        lambda: |
+          it.print(150, 260, id(materialdesign_icons_25),TextAlign::BOTTOM_CENTER, "\U000F1056\U000F0A26");
+          it.print(150, 150, id(openSansBold_font),TextAlign::BOTTOM_CENTER, "Alles Liebe zum");
+          it.print(150, 180, id(openSansBold_font),TextAlign::BOTTOM_CENTER, "25. Geburtstag! \\o/");
+          
+          
+          
+          
