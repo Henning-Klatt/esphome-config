@@ -216,9 +216,9 @@ display:
           
           // Blood Glucose
           if(id(current_bg).has_state()){
-            it.printf(15, 140, id(watch_font),TextAlign::BOTTOM_LEFT, "%s", id(current_bg).state.c_str());
+            it.printf(160, 140, id(watch_font),TextAlign::BOTTOM_RIGHT, "%s", id(current_bg).state.c_str());
           } else{
-            it.print(15, 140, id(watch_font),TextAlign::BOTTOM_LEFT, "---");
+            it.print(160, 140, id(watch_font),TextAlign::BOTTOM_RIGHT, "---");
           }
           
           // Blood Glucose Delta
