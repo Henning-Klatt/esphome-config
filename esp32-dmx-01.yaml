@@ -185,5 +185,3 @@ output:
     channel: 6 # strobe
     universe: dmx
     id: dmx_ch_6
-
-

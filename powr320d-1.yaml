@@ -21,7 +21,6 @@ logger:
   baud_rate: 0
 
 api:
-  password: !secret api_password
   encryption:
     key: !secret powr320d-1-key
   reboot_timeout: 24h
