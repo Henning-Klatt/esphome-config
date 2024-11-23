@@ -52,13 +52,22 @@ sensor:
   - platform: cse7766
     current:
       name: $friendly_name Current
+      icon: mdi:current-ac
+      filters:
+        - throttle_average: 5s
       id: a_sensor
     voltage:
       name: $friendly_name Voltage
       id: v_sensor
+      icon: mdi:flash
+      filters:
+        - throttle_average: 5s
     power:
       name: $friendly_name Power
       id: w_sensor
+      icon: mdi:gauge
+      filters:
+        - throttle_average: 5s
       on_value_range:
         - above: 4.0
           then:
@@ -69,6 +78,8 @@ sensor:
     energy:
       name: $friendly_name Energy
       id: wh_sensor
+      filters:
+        - throttle_average: 5s
 
   - platform: total_daily_energy
     name: $friendly_name Total Daily Energy
@@ -83,6 +94,9 @@ sensor:
     device_class: power_factor
     id: power_factor
     lambda: return id(w_sensor).state / id(v_sensor).state / id(a_sensor).state;
+
+  - platform: uptime
+    name: "$friendly_name Uptime"
 
 binary_sensor:
   - platform: gpio
@@ -146,11 +160,12 @@ switch:
   - platform: template
     name: "$friendly_name Relay"
     optimistic: true
+    restore_mode: ALWAYS_ON
     id: relay_1
     lambda: |-
-      if (isnan(id(w_sensor).state)) {
+      if (isnan(id(v_sensor).state)) {
         return {};
-      } else if (id(w_sensor).state > 4) {
+      } else if (id(v_sensor).state > 100) {
         // Running
         return true;
       } else {
