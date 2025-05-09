@@ -4,7 +4,8 @@ substitutions:
 
 esphome:
   name: $device_name
-  platform: ESP8266
+  
+esp8266:
   board: d1
 
 wifi:
@@ -161,7 +162,7 @@ text_sensor:
   
   - platform: wifi_info
     ip_address:
-      name: "${device_name} IP Address"
+      name: "${friendly_name} IP Address"
       id: ip_address
 
 
@@ -169,13 +170,16 @@ sensor:
   - platform: template
     name: "current blood glucose delta"
     id: current_bg_delta
+    internal: true
     
   - platform: wifi_signal
+    name: "${friendly_name} WiFi Signal dB"
     id: wifisignal
     update_interval: 60s
+    entity_category: "diagnostic"
 
   - platform: uptime
-    name: "$friendly_name Uptime"
+    name: "${friendly_name} Uptime"
 
 http_request:
   useragent: "esphome/${device_name}"
@@ -284,15 +288,16 @@ display:
           // WiFi strength
           if(id(wifisignal).has_state()) {
             ESP_LOGI("wifisignal", "%f", id(wifisignal).state);
-            if (id(wifisignal).state >= -50) {
-              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F0928");
-            } else if (id(wifisignal).state  >= -60) {
-              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F0925");
-            } else if (id(wifisignal).state  >= -67) {
-              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F0922");
+            if (id(wifisignal).state >= -55) {
+              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F0928"); // # mdi-wifi-strength-4
+            } else if (id(wifisignal).state  >= -65) {
+              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F0925"); // # mdi-wifi-strength-3
             } else if (id(wifisignal).state  >= -70) {
+              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F0922"); // # mdi-wifi-strength-2
+            } else if (id(wifisignal).state  >= -75) {
+              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F091F"); // # mdi-wifi-strength-1
             } else {
-              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F092B");
+              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F092B"); // # mdi-wifi-strength-alert-outline
               ESP_LOGI("WiFi", "Unlikely");
             }
           }

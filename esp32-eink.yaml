@@ -116,10 +116,11 @@ script:
  - id: fetch_from_nightscout
    then:
         - lambda: |-
+            WiFiClient client;
             HTTPClient http;
-            http.begin("http://nightscout.lexodexo.de/api/v1/entries/current.json");
+            http.begin(client, "http://nightscout.lexodexo.de/api/v1/entries/current.json");
             http.GET();
-            DynamicJsonDocument doc(6000);
+            DynamicJsonDocument doc(300);
             deserializeJson(doc, http.getStream());
             int reading = doc[0]["sgv"];
             id(current_bg).publish_state(to_string(reading));
@@ -289,6 +290,7 @@ display:
             } else if (id(wifisignal).state  >= -67) {
               it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F0922");
             } else if (id(wifisignal).state  >= -70) {
+              it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F091F"); // # mdi-wifi-strength-1
             } else {
               it.print(290, 400, id(materialdesign_icons_30), TextAlign::BOTTOM_RIGHT, "\U000F092B");
               ESP_LOGI("WiFi", "Unlikely");
