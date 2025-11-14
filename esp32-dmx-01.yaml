@@ -6,6 +6,11 @@ esp32:
 
 wifi:
   networks:
+  # AP 3 Dachboden
+  - ssid: !secret wifi_ssid_1
+    password: !secret wifi_password_1
+    bssid: 34:FC:B9:CE:FA:78
+    priority: 5.0
   - ssid: !secret wifi_ssid_1
     password: !secret wifi_password_1
   - ssid: !secret wifi_ssid_2
