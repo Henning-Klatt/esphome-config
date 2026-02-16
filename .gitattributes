@@ -1,0 +1,2 @@
+#pattern  filter=crypt diff=crypt merge=crypt
+fr/secrets.yaml  filter=crypt diff=crypt merge=crypt
