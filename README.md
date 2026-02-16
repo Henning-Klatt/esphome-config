@@ -1,5 +1,14 @@
 # esphome-config
 
+## Secrets
+> [!IMPORTANT]
+> This repository uses [transcrypt](https://github.com/elasticdog/transcrypt) to encrypt sensitive yaml files.
+
+Decrypt sensitive files
+```bash
+git submodule update --init
+```
+
 ### Update esphome
 ```
 docker pull ghcr.io/esphome/esphome
