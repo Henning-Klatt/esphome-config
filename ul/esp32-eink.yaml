@@ -7,22 +7,17 @@ esphome:
 
 esp32:
   board: nodemcu-32s
+  framework:
+    type: esp-idf
 
 wifi:
   power_save_mode: none
   output_power: 15
-  fast_connect: true
+  fast_connect: false
+  min_auth_mode: "WPA2"
   networks:
-#  - ssid: !secret wifi_ssid_1
-#    password: !secret wifi_password_1
-#  - ssid: !secret wifi_ssid_2
-#    password: !secret wifi_password_2
-#  - ssid: !secret wifi_ssid_3
-#    password: !secret wifi_password_3
-#  - ssid: !secret wifi_ssid_4
-#    password: !secret wifi_password_4
-  - ssid: !secret wifi_ssid_5
-    password: !secret wifi_password_5
+  - ssid: !secret wifi_ssid_1
+    password: !secret wifi_password_1
 
 
 ota:
@@ -120,19 +115,17 @@ script:
             HTTPClient http;
             http.begin(client, "http://nightscout.lexodexo.de/api/v1/entries/current.json");
             http.GET();
-            DynamicJsonDocument doc(300);
-            deserializeJson(doc, http.getStream());
+            JsonDocument doc;
+            DeserializationError error = deserializeJson(doc, http.getStream());
             int reading = doc[0]["sgv"];
             id(current_bg).publish_state(to_string(reading));
-            id(current_bg_trend).publish_state(doc[0]["direction"]);
-            id(current_bg_delta).publish_state(doc[0]["delta"]);
-            id(ns_date).publish_state(doc[0]["date"]);
+            id(current_bg_trend).publish_state(doc[0]["direction"].as<const char*>());
+            id(current_bg_delta).publish_state(doc[0]["delta"].as<float>());
  
             // If new value
-            if(id(ns_last_id).state != doc[0]["_id"]){
-              id(ns_last_id).publish_state(doc[0]["_id"]);
+            if(id(ns_last_id).state != doc[0]["_id"].as<const char*>()){
+              id(ns_last_id).publish_state(doc[0]["_id"].as<const char*>());
               ESP_LOGI("Nightscout", "Got new unique _id");
-              // auto time = id(sntp_time).now();
               id(my_display).update();
             }
 
