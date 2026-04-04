@@ -8,10 +8,11 @@ esphome:
 esp32:
   board: esp32-c3-devkitm-1
   framework:
-    type: esp-idf
+    type: arduino
 
 
 wifi:
+  post_connect_roaming: true
   networks:
   - ssid: !secret wifi_ssid_1
     password: !secret wifi_password_1
