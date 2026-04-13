@@ -8,7 +8,7 @@ esphome:
 esp32:
   board: nodemcu-32s
   framework:
-    type: esp-idf
+    type: arduino
 
 wifi:
   power_save_mode: none
@@ -104,37 +104,66 @@ interval:
           condition:
             wifi.connected:
           then:
-            - script.execute: fetch_from_nightscout
+            - http_request.get:
+                url: "https://nightscout.lexodexo.de/api/v1/entries/current.json"
+                request_headers:
+                    Content-Type: application/json
+                on_response:
+                  then:
+                    - lambda: |-
+                        if (response->status_code != 200) {
+                            ESP_LOGE("nightscout", "HTTP Error: Status %d", response->status_code);
+                            return;
+                        }
 
+                        std::string body;
+                        body.resize(response->content_length);
+                        response->read((uint8_t*)&body[0], response->content_length);
 
-script:
- - id: fetch_from_nightscout
-   then:
-        - lambda: |-
-            WiFiClient client;
-            HTTPClient http;
-            http.begin(client, "http://nightscout.lexodexo.de/api/v1/entries/current.json");
-            http.GET();
-            JsonDocument doc;
-            DeserializationError error = deserializeJson(doc, http.getStream());
-            int reading = doc[0]["sgv"];
-            id(current_bg).publish_state(to_string(reading));
-            id(current_bg_trend).publish_state(doc[0]["direction"].as<const char*>());
-            id(current_bg_delta).publish_state(doc[0]["delta"].as<float>());
- 
-            // If new value
-            if(id(ns_last_id).state != doc[0]["_id"].as<const char*>()){
-              id(ns_last_id).publish_state(doc[0]["_id"].as<const char*>());
-              ESP_LOGI("Nightscout", "Got new unique _id");
-              id(my_display).update();
-            }
+                        JsonDocument doc;
+                        DeserializationError err = deserializeJson(doc, body);
+
+                        if (err) {
+                            ESP_LOGE("nightscout", "deserializeJson error: %s", err.c_str());
+                            return;
+                        }
+
+                        if (!doc.is<JsonArray>() || doc.size() == 0) {
+                            ESP_LOGW("nightscout", "Leeres oder ungültiges JSON-Array");
+                            return;
+                        }
+
+                        JsonObject entry = doc[0].as<JsonObject>();
+
+                        if (entry["sgv"].is<float>()) {
+                            float sgv = entry["sgv"].as<float>();
+                            id(current_bg).publish_state(sgv);
+                            ESP_LOGI("nightscout", "SGV: %.0f mg/dL", sgv);
+                        }
+
+                        if (entry["delta"].is<float>()) {
+                            float delta = entry["delta"].as<float>();
+                            id(current_bg_delta).publish_state(delta);
+                            ESP_LOGI("nightscout", "Delta: %.1f mg/dL", delta);
+                        }
+
+                        if (entry["direction"].is<const char*>()) {
+                            std::string dir = entry["direction"].as<std::string>();
+                            ESP_LOGI("nightscout", "Trend: %s", dir.c_str());
+                            id(current_bg_trend).publish_state(dir);
+                        }
+
+                        if (entry["_id"].is<const char*>()) {
+                            std::string last_id = entry["_id"].as<std::string>();
+                            if(id(ns_last_id).state != last_id){
+                                ESP_LOGI("nightscout", "Got new unique _id: %s", last_id.c_str());
+                                id(ns_last_id).publish_state(last_id);
+                                id(my_display).update();
+                            }
+                        }
 
 
 text_sensor:
-  - platform: template
-    name: "Current blood glucose"
-    id: current_bg
-
   - platform: template
     name: "current blood glucose trend"
     id: current_bg_trend
@@ -155,6 +184,10 @@ text_sensor:
 
 sensor:
   - platform: template
+    name: "Current blood glucose"
+    id: current_bg
+
+  - platform: template
     name: "current blood glucose delta"
     id: current_bg_delta
     
@@ -174,9 +207,10 @@ sensor:
     name: "$friendly_name Uptime"
 
 http_request:
+  id: http_client
   useragent: "esphome/${device_name}"
-  timeout: 4s
-  verify_ssl: false
+  timeout: 10s
+  # verify_ssl: false
 
 external_components:
   - source: github://pr#6209
@@ -230,7 +264,7 @@ display:
           
           // Blood Glucose
           if(id(current_bg).has_state()){
-            it.printf(15, 140, id(watch_font),TextAlign::BOTTOM_LEFT, "%s", id(current_bg).state.c_str());
+            it.printf(15, 140, id(watch_font),TextAlign::BOTTOM_LEFT, "%.0f", id(current_bg).state);
           } else{
             it.print(15, 140, id(watch_font),TextAlign::BOTTOM_LEFT, "---");
           }
