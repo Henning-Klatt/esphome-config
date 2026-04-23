@@ -216,6 +216,9 @@ button:
       - display.page.show: page4
       - component.update: my_display
 
+  - platform: restart
+    name: "${friendly_name} Restart"
+
 spi:
   clk_pin: GPIO14
   mosi_pin: GPIO13
