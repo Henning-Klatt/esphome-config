@@ -167,14 +167,17 @@ text_sensor:
   - platform: template
     name: "current blood glucose trend"
     id: current_bg_trend
+    internal: true
     
   - platform: template
     name: "nightscout last id"
     id: ns_last_id
+    internal: true
     
   - platform: template
     name: "nightscout date"
     id: ns_date
+    internal: true
   
   - platform: wifi_info
     ip_address:
@@ -186,10 +189,12 @@ sensor:
   - platform: template
     name: "Current blood glucose"
     id: current_bg
+    internal: true
 
   - platform: template
     name: "current blood glucose delta"
     id: current_bg_delta
+    internal: true
     
   - platform: wifi_signal
     id: wifisignal
