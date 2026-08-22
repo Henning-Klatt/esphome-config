@@ -7,6 +7,7 @@
 Decrypt sensitive files
 ```bash
 git submodule update --init
+./transcrypt/transcrypt -c aes-256-cbc -p 'secret key'
 ```
 
 ### Update esphome
