@@ -1,6 +1,6 @@
 substitutions:
-  friendly_name: "Plug ET28 3"
-  device_name: "plug-et28-3"
+  friendly_name: "Plug ET28 4"
+  device_name: "plug-et28-4"
 
 esphome:
   name: $device_name
@@ -37,7 +37,7 @@ logger:
 
 api:
   encryption:
-    key: !secret plug-et28-3-key
+    key: !secret plug-et28-4-key
   reboot_timeout: 24h
 
 web_server:
