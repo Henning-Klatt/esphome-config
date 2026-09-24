@@ -1,0 +1,76 @@
+substitutions:
+  friendly_name: "ESP32 Projector Controller"
+  device_name: "esp32-projector"
+
+esphome:
+  name: $device_name
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: arduino
+
+wifi:
+  networks:
+  - ssid: !secret wifi_ssid_1
+    password: !secret wifi_password_1
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: !secret esp32-projector-key
+  reboot_timeout: 24h
+  services:
+    - service: write
+      variables:
+        command: string
+      then:
+        - uart.write:
+            id: projector_uart
+            data: !lambda |-
+              std::string str = command;
+              std::vector<uint8_t> vec(str.begin(), str.end());
+              return vec;
+
+web_server:
+  port: 80
+
+uart:
+  tx_pin: GPIO17 # TX2
+  rx_pin: GPIO16 # RX2
+  baud_rate: 9600
+  id: projector_uart
+
+
+switch:
+  - platform: template
+    name: "Projector Power"
+    optimistic: true
+    turn_on_action:
+      - uart.write:
+          id: projector_uart
+          data: '* 0 IR 001\r'
+    turn_off_action:
+      - uart.write:
+          id: projector_uart
+          data: '* 0 IR 002\r'
+
+button:
+  - platform: restart
+    name: "${friendly_name} Restart"
+
+sensor:
+  - platform: wifi_signal
+    name: "${friendly_name} WiFi Signal dB"
+    id: wifisignal
+    update_interval: 60s
+    entity_category: "diagnostic"
+
+  - platform: uptime
+    name: "$friendly_name Uptime"
