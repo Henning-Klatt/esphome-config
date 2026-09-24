@@ -19,8 +19,19 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
+
 logger:
-  level: DEBUG
+  level: VERY_VERBOSE
+  logs:
+    wifi: WARN
+    api: WARN
+    api.service: WARN
+    sensor: WARN
+    text_sensor: WARN
+    web_server: WARN
+    ota: WARN
+    esp32: WARN
+
 
 api:
   encryption:
@@ -42,11 +53,16 @@ web_server:
   port: 80
 
 uart:
+  id: projector_uart
   tx_pin: GPIO17 # TX2
   rx_pin: GPIO16 # RX2
   baud_rate: 9600
-  id: projector_uart
-
+  debug:
+    direction: BOTH
+    dummy_receiver: false
+    sequence:
+      - lambda: |-
+          UARTDebug::log_hex(direction, bytes, ' ');
 
 switch:
   - platform: template
