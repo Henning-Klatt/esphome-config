@@ -55,11 +55,11 @@ switch:
     turn_on_action:
       - uart.write:
           id: projector_uart
-          data: '* 0 IR 001\r'
+          data: "* 0 IR 001\r"
     turn_off_action:
       - uart.write:
           id: projector_uart
-          data: '* 0 IR 002\r'
+          data: "* 0 IR 002\r"
 
 button:
   - platform: restart
