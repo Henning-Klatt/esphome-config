@@ -1,0 +1,307 @@
+substitutions:
+  friendly_name: "Co2 Puffin"
+  device_name: "co2-puffin"
+
+esphome:
+  name: $device_name
+
+esp8266:
+  board: d1_mini
+
+
+wifi:
+  networks:
+  - ssid: !secret wifi_ssid_1
+    password: !secret wifi_password_1
+    bssid: 1C:ED:6F:3D:53:0E
+    priority: 10
+  - ssid: !secret wifi_ssid_1
+    password: !secret wifi_password_1
+    priority: 0
+
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+
+logger:
+  level: DEBUG
+  baud_rate: 0
+
+
+api:
+  encryption:
+    key: !secret co2-puffin-key
+  reboot_timeout: 24h
+
+
+web_server:
+  port: 80
+  version: 3
+
+
+i2c:
+  sda: D2   # GPIO4
+  scl: D1   # GPIO5
+  scan: true
+  frequency: 50kHz
+
+# UART0 mit getauschten Pins: TX = GPIO15 (D8), RX = GPIO13 (D7)
+uart:
+  id: gimbal_uart
+  tx_pin: GPIO15
+  rx_pin: GPIO13
+  baud_rate: 115200   # muss zu "Uart Baudrate" im Setup-Tab des o323BGC-Tools passen
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+
+globals:
+  - id: rx_buf
+    type: std::vector<uint8_t>
+
+
+script:
+  # Sendet STorM32 RC-Kommando CMD_SETANGLES (#17):
+  # 0xFA | len=14 | cmd=0x11 | pitch(f32) roll(f32) yaw(f32) | flags=0 | type=0 | crc16-x25 (LSB first)
+  - id: send_angles
+    mode: queued
+    parameters:
+      roll: float
+    then:
+      - lambda: |-
+          // Pitch/Yaw hier fest eintragen (Grad), CMD_SETANGLES setzt alle 3 Achsen
+          const float pitch = 0.0f;
+          const float yaw = 0.0f;
+          uint8_t buf[19];
+          buf[0] = 0xFA;
+          buf[1] = 14;
+          buf[2] = 0x11;
+          memcpy(&buf[3], &pitch, 4);
+          memcpy(&buf[7], &roll, 4);
+          memcpy(&buf[11], &yaw, 4);
+          buf[15] = 0;  // flags
+          buf[16] = 0;  // type
+          // CRC x25 (wie MAVLink) ueber len, cmd, payload (ohne Startbyte)
+          uint16_t crc = 0xFFFF;
+          for (int i = 1; i < 17; i++) {
+            uint8_t tmp = buf[i] ^ (uint8_t)(crc & 0xFF);
+            tmp ^= (tmp << 4);
+            crc = (crc >> 8) ^ ((uint16_t) tmp << 8) ^ ((uint16_t) tmp << 3) ^ (tmp >> 4);
+          }
+          buf[17] = crc & 0xFF;
+          buf[18] = (crc >> 8) & 0xFF;
+          id(gimbal_uart).write_array(buf, sizeof(buf));
+
+
+
+switch:
+  # Manual mode: angle comes from the slider instead of the CO2 value (takes priority over everything else)
+  - platform: template
+    name: "Gimbal Manual Mode"
+    id: manual_mode
+    icon: mdi:hand-back-right
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  # Simulates CO2 > 1000 ppm: alternates between +80° and -80° every 5 s
+  - platform: template
+    name: "Gimbal Simulate Wobble"
+    id: simulate_wobble
+    icon: mdi:sine-wave
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+
+number:
+  - platform: template
+    name: "Gimbal Roll Angle (manual)"
+    id: manual_roll
+    unit_of_measurement: "°"
+    min_value: -90
+    max_value: 90
+    step: 0.5
+    initial_value: 0
+    restore_value: true
+    optimistic: true
+    mode: slider
+
+
+sensor:
+  # Roll target angle (derived from CO2) that is sent to the gimbal
+  - platform: template
+    name: "Gimbal Roll Target Angle"
+    id: gimbal_roll_target
+    unit_of_measurement: "°"
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Gimbal Input Voltage"
+    id: gimbal_voltage
+    unit_of_measurement: "V"
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 2
+    entity_category: diagnostic
+
+  - platform: template
+    name: "Gimbal Roll Angle (IMU1)"
+    id: gimbal_roll_actual
+    unit_of_measurement: "°"
+    accuracy_decimals: 1
+    entity_category: diagnostic
+
+  - platform: template
+    name: "Gimbal I2C Errors"
+    id: gimbal_i2c_errors
+    accuracy_decimals: 0
+    state_class: measurement
+    entity_category: diagnostic
+
+  - platform: wifi_signal
+    name: "${friendly_name} WiFi Signal dB"
+    id: wifisignal
+    update_interval: 60s
+    entity_category: "diagnostic"
+
+  - platform: uptime
+    name: "${friendly_name} Uptime"
+
+  - platform: scd30
+    co2:
+      name: "CO2"
+      id: co2_ppm
+      accuracy_decimals: 1
+    temperature:
+      name: "Temperature"
+      accuracy_decimals: 2
+    humidity:
+      name: "Humidity"
+      accuracy_decimals: 1
+    temperature_offset: 1.5 °C
+    address: 0x61
+    update_interval: 5s
+
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "${friendly_name} IP Address"
+      id: ip_address
+
+  - platform: template
+    name: "Gimbal Status"
+    id: gimbal_state_text
+    icon: mdi:camera-control
+    entity_category: diagnostic
+
+
+interval:
+
+  - interval: 1s
+    then:
+      - lambda: |-
+          float ppm = id(co2_ppm).state;
+          float angle = 0.0f;
+          bool wobble = ((millis() / 5000) % 2) == 0;
+          if (id(manual_mode).state) {
+            angle = id(manual_roll).state;
+          } else if (id(simulate_wobble).state) {
+            angle = wobble ? 80.0f : -80.0f;
+          } else if (!std::isnan(ppm)) {
+            if (ppm > 1000.0f) {
+              angle = wobble ? 80.0f : -80.0f;
+            } else {
+              angle = (ppm - 500.0f) / 500.0f * 80.0f;
+              angle = fmaxf(0.0f, fminf(80.0f, angle));
+            }
+          }
+          id(gimbal_roll_target).publish_state(angle);
+      - script.execute:
+          id: send_angles
+          roll: !lambda 'return id(gimbal_roll_target).state;'
+
+
+
+  # Request live data: CMD_GETDATA (#5), type 0 -> 0xFA 0x01 0x05 0x00 crc
+  - interval: 1s
+    then:
+      - lambda: |-
+          uint8_t req[6] = {0xFA, 0x01, 0x05, 0x00, 0, 0};
+          uint16_t crc = 0xFFFF;
+          for (int i = 1; i < 4; i++) {
+            uint8_t tmp = req[i] ^ (uint8_t)(crc & 0xFF);
+            tmp ^= (tmp << 4);
+            crc = (crc >> 8) ^ ((uint16_t) tmp << 8) ^ ((uint16_t) tmp << 3) ^ (tmp >> 4);
+          }
+          req[4] = crc & 0xFF;
+          req[5] = (crc >> 8) & 0xFF;
+          id(gimbal_uart).write_array(req, sizeof(req));
+
+
+ # Read and evaluate responses (0xFB ...)
+  - interval: 20ms
+    then:
+      - lambda: |-
+          static uint32_t last_rx = 0;
+          auto &buf = id(rx_buf);
+          uint32_t now = millis();
+          if (!buf.empty() && now - last_rx > 300) buf.clear();  // Timeout -> Resync
+          uint8_t b;
+          while (id(gimbal_uart).available()) {
+            id(gimbal_uart).read_byte(&b);
+            last_rx = now;
+            if (buf.empty() && b != 0xFB) continue;
+            buf.push_back(b);
+            if (buf.size() < 3) continue;
+            size_t total = 3 + buf[1] + 2;
+            if (total > 120) { buf.clear(); continue; }
+            if (buf.size() < total) continue;
+
+            // CRC pruefen (x25 ueber len, cmd, payload)
+            uint16_t crc = 0xFFFF;
+            for (size_t i = 1; i < total - 2; i++) {
+              uint8_t tmp = buf[i] ^ (uint8_t)(crc & 0xFF);
+              tmp ^= (tmp << 4);
+              crc = (crc >> 8) ^ ((uint16_t) tmp << 8) ^ ((uint16_t) tmp << 3) ^ (tmp >> 4);
+            }
+            uint16_t rx_crc = buf[total - 2] | (buf[total - 1] << 8);
+
+            if (crc != rx_crc) {
+              ESP_LOGW("storm32", "CRC-Fehler in Antwort (cmd %u)", buf[2]);
+            } else if (buf[2] == 0x05 && buf[1] >= 34) {
+              // Antwort auf CMD_GETDATA: 0xFB len 0x05 type 0x00 data... (Daten ab Index 5)
+              const uint8_t *d = &buf[5];
+              auto u16 = [&](int off) -> uint16_t { return d[off] | (d[off + 1] << 8); };
+              uint16_t state = u16(0);
+              // Layout der 'd'/GETDATA-Daten (o323bgc, V1): state, status, status2,
+              // i2c errors, lipo_voltage (mV), timestamp, cycle time, gyro(3), acc(3),
+              // R(3), IMU1 angles pitch/roll/yaw (0.01 deg), ...
+              uint16_t errors = u16(6);
+              float volt = u16(8) / 1000.0f;
+              float roll_act = (int16_t) u16(34) / 100.0f;
+
+              const char *st;
+              switch (state) {
+                case 0: st = "STARTUP_MOTORS"; break;
+                case 1: st = "STARTUP_SETTLE"; break;
+                case 2: st = "STARTUP_CALIBRATE"; break;
+                case 3: st = "STARTUP_LEVEL"; break;
+                case 4: st = "STARTUP_MOTORDIRDETECT"; break;
+                case 5: st = "STARTUP_RELEVEL"; break;
+                case 6: st = "NORMAL"; break;
+                case 99: st = "STANDBY"; break;
+                default: st = "UNKNOWN"; break;
+              }
+              char txt[48];
+              snprintf(txt, sizeof(txt), "State is %s", st);
+              id(gimbal_state_text).publish_state(txt);
+
+              id(gimbal_voltage).publish_state(volt);
+              id(gimbal_roll_actual).publish_state(roll_act);
+              id(gimbal_i2c_errors).publish_state(errors);
+            }
+            buf.clear();
+          }

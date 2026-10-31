@@ -1,0 +1,114 @@
+substitutions:
+  friendly_name: "ESP32 Projector Screen"
+  device_name: "esp32-projector-screen"
+
+  up_time: 70s
+  down_time: 70s
+
+esphome:
+  name: $device_name
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+wifi:
+  networks:
+  - ssid: !secret wifi_ssid_1
+    password: !secret wifi_password_1
+    bssid: 1C:ED:6F:3D:53:0E
+    priority: 10
+  - ssid: !secret wifi_ssid_1
+    password: !secret wifi_password_1
+    priority: 0
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+logger:
+
+api:
+  encryption:
+    key: !secret esp32-projector-screen-key
+
+web_server:
+  port: 80
+  version: 3
+
+switch:
+  - platform: gpio
+    id: motor_up
+    pin: GPIO26
+    internal: true
+    restore_mode: ALWAYS_OFF
+    interlock: [motor_down]
+    interlock_wait_time: 300ms
+ 
+  - platform: gpio
+    id: motor_down
+    pin: GPIO27
+    internal: true
+    restore_mode: ALWAYS_OFF
+    interlock: [motor_up]
+    interlock_wait_time: 300ms
+ 
+cover:
+  - platform: time_based
+    id: screen
+    name: "Leinwand"
+    internal: false
+    device_class: shade
+    has_built_in_endstop: false
+    assumed_state: true
+ 
+    open_action:
+      - switch.turn_on: motor_up
+    open_duration: ${up_time}
+ 
+    close_action:
+      - switch.turn_on: motor_down
+    close_duration: ${down_time}
+ 
+    stop_action:
+      - switch.turn_off: motor_up
+      - switch.turn_off: motor_down
+ 
+button:
+  - platform: template
+    name: "Hoch"
+    icon: mdi:arrow-up-bold
+    on_press:
+      - cover.open: screen
+ 
+  - platform: template
+    name: "Runter"
+    icon: mdi:arrow-down-bold
+    on_press:
+      - cover.close: screen
+ 
+  - platform: template
+    name: "Stop"
+    icon: mdi:stop
+    on_press:
+      - cover.stop: screen
+
+  - platform: template
+    name: "Position oben setzen"
+    icon: mdi:restore
+    on_press:
+      - cover.stop: screen
+      - lambda: |-
+          id(screen).position = 1.0f;
+          id(screen).publish_state();
+
+  - platform: template
+    name: "Position unten setzen"
+    icon: mdi:restore
+    on_press:
+      - cover.stop: screen
+      - lambda: |-
+          id(screen).position = 0.0f;
+          id(screen).publish_state();
+
